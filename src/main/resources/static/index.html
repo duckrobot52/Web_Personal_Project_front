@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>동네 진열대 · 상품 주문</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --steel: #D9DFE4;
+      --steel-dark: #BCC5CD;
+      --ink: #15263A;
+      --label: #FFD23F;
+      --paper: #FFFFFF;
+      --ok: #1F7A55;
+      --alert: #C8321E;
+      --display: "Black Han Sans", "IBM Plex Sans KR", sans-serif;
+      --body: "IBM Plex Sans KR", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--steel); color: var(--ink); font: 400 16px/1.6 var(--body); }
+    button, input { font: inherit; color: inherit; }
+    :focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+    h1, h2 { font-family: var(--display); font-weight: 400; line-height: 1.15; margin: 0; }
+
+    /* 상단 */
+    .top { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 14px clamp(16px, 4vw, 48px); background: var(--ink); color: var(--paper); }
+    .top h1 { font-size: 1.6rem; margin-right: auto; }
+    .top .user { font-size: .9375rem; }
+    .btn { border: 2px solid var(--ink); background: var(--paper); padding: 6px 14px; border-radius: 4px; cursor: pointer; font-weight: 500; }
+    .btn:hover { background: var(--label); }
+    .btn[disabled] { opacity: .45; cursor: not-allowed; background: var(--paper); }
+    .btn.primary { background: var(--ink); color: var(--paper); }
+    .btn.primary:hover { background: #24405F; }
+    .top .btn { border-color: var(--paper); background: transparent; color: var(--paper); }
+    .top .btn:hover { background: var(--paper); color: var(--ink); }
+
+    .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 32px; padding: 32px clamp(16px, 4vw, 48px) 64px; max-width: 1320px; margin: 0 auto; align-items: start; }
+    @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } }
+
+    /* 검색 */
+    .search { display: flex; gap: 8px; margin-bottom: 24px; }
+    .search input { flex: 1; min-width: 0; padding: 10px 14px; border: 2px solid var(--ink); border-radius: 4px; background: var(--paper); }
+
+    /* 진열대: 선반 레일 위에 가격표가 걸린 형태 */
+    .shelf { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 28px 12px; }
+    .tag { position: relative; background: var(--label); border-top: 8px solid var(--ink); padding: 14px 16px 16px; display: grid; gap: 4px; min-height: 196px; }
+    .tag.soldout { background: var(--paper); }
+    .tag .name { font-weight: 700; font-size: 1.0625rem; line-height: 1.35; }
+    .tag .code { font-size: .8125rem; opacity: .7; }
+    .tag .price { font-family: var(--display); font-size: 2.25rem; line-height: 1; margin-top: auto; font-variant-numeric: tabular-nums; }
+    .tag .price small { font-size: 1rem; margin-left: 2px; }
+    .tag .row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 8px; }
+    .stock { font-size: .875rem; font-weight: 500; }
+    .stock.low { color: var(--alert); }
+    .soldout .stock { color: var(--alert); }
+
+    .empty { background: var(--paper); border: 2px dashed var(--ink); padding: 28px; border-radius: 4px; }
+    .empty p { margin: 0 0 4px; }
+    .pager { display: flex; align-items: center; gap: 12px; margin-top: 28px; }
+
+    /* 주문 전표 */
+    .slip { position: sticky; top: 24px; background: var(--paper); border-radius: 4px; padding: 20px; border: 2px solid var(--ink); }
+    .slip h2 { font-size: 1.5rem; margin-bottom: 12px; }
+    .lines { list-style: none; margin: 0 0 12px; padding: 0; }
+    .lines li { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px dashed var(--steel-dark); }
+    .lines input { width: 56px; padding: 4px 6px; border: 1px solid var(--steel-dark); border-radius: 4px; text-align: right; }
+    .lines .x { border: 0; background: none; cursor: pointer; font-size: 1.1rem; padding: 2px 6px; }
+    .total { display: flex; justify-content: space-between; align-items: baseline; margin: 8px 0 16px; }
+    .total strong { font-family: var(--display); font-weight: 400; font-size: 1.75rem; }
+    label { display: grid; gap: 4px; font-size: .9375rem; font-weight: 500; margin-bottom: 12px; }
+    label input { padding: 8px 10px; border: 2px solid var(--ink); border-radius: 4px; font-weight: 400; }
+    .slip .btn.primary { width: 100%; padding: 10px; }
+    .hint { font-size: .875rem; opacity: .75; margin: 8px 0 0; }
+
+    section.block { margin-top: 48px; }
+    section.block h2 { font-size: 1.5rem; margin-bottom: 16px; }
+    .orders { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+    .orders li { background: var(--paper); border-left: 6px solid var(--ink); padding: 12px 16px; }
+    .orders .head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-weight: 700; }
+    .orders .meta { font-size: .875rem; opacity: .75; }
+    .orders ul { margin: 6px 0 0; padding-left: 18px; font-size: .9375rem; }
+
+    details.admin { margin-top: 48px; background: var(--paper); padding: 16px 20px; border-radius: 4px; }
+    details.admin summary { cursor: pointer; font-weight: 700; }
+    .admin form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 12px; margin-top: 16px; align-items: end; }
+    .admin .btn { margin-bottom: 12px; }
+
+    dialog { border: 2px solid var(--ink); border-radius: 4px; padding: 24px; width: min(380px, 92vw); }
+    dialog::backdrop { background: rgba(21, 38, 58, .5); }
+    dialog h2 { font-size: 1.5rem; margin-bottom: 16px; }
+    .dlg-actions { display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-top: 8px; }
+    .linkish { border: 0; background: none; text-decoration: underline; cursor: pointer; padding: 0; font-size: .9375rem; }
+
+    .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 140%); visibility: hidden; background: var(--ink); color: var(--paper); padding: 12px 20px; border-radius: 4px; max-width: 90vw; transition: transform .25s ease, visibility .25s; }
+    .toast.show { transform: translate(-50%, 0); visibility: visible; }
+    .toast.err { background: var(--alert); }
+    @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <h1>동네 진열대</h1>
+    <span class="user" id="who" hidden></span>
+    <button class="btn" id="authBtn" type="button">로그인</button>
+  </header>
+
+  <div class="wrap">
+    <main>
+      <form class="search" id="searchForm" role="search">
+        <input type="search" id="keyword" placeholder="상품 이름으로 찾기" aria-label="상품 이름으로 찾기">
+        <button class="btn" type="submit">찾기</button>
+      </form>
+
+      <ul class="shelf" id="shelf" aria-live="polite"></ul>
+      <div class="empty" id="empty" hidden></div>
+
+      <nav class="pager" id="pager" hidden aria-label="페이지">
+        <button class="btn" id="prev" type="button">이전</button>
+        <span id="pageInfo"></span>
+        <button class="btn" id="next" type="button">다음</button>
+      </nav>
+
+      <section class="block" id="ordersBlock" hidden>
+        <h2>내 주문 내역</h2>
+        <ul class="orders" id="orders"></ul>
+      </section>
+
+      <details class="admin">
+        <summary>상품 등록 (테스트용)</summary>
+        <form id="goodsForm">
+          <label>상품번호 <input name="goodsId" required maxlength="20"></label>
+          <label>상품 이름 <input name="goodsName" required maxlength="50"></label>
+          <label>가격(원) <input name="goodsPrice" type="number" min="0" required></label>
+          <label>재고 <input name="stock" type="number" min="0" required></label>
+          <button class="btn primary" type="submit">상품 등록</button>
+        </form>
+      </details>
+    </main>
+
+    <aside class="slip" aria-labelledby="slipTitle">
+      <h2 id="slipTitle">주문 전표</h2>
+      <ul class="lines" id="lines"></ul>
+      <p class="hint" id="cartEmpty">진열대에서 상품을 담으면 여기에 적힙니다.</p>
+      <div class="total"><span>합계</span><strong id="total">0원</strong></div>
+      <form id="orderForm">
+        <label>받는 주소 <input id="address" required maxlength="100" placeholder="예: 서울시 마포구 월드컵로 1"></label>
+        <button class="btn primary" type="submit" id="orderBtn" disabled>주문하기</button>
+        <p class="hint" id="orderHint">주문하려면 먼저 로그인하세요.</p>
+      </form>
+    </aside>
+  </div>
+
+  <dialog id="authDlg">
+    <form id="authForm" method="dialog">
+      <h2 id="authTitle">로그인</h2>
+      <label>아이디 <input name="userId" required maxlength="30" autocomplete="username"></label>
+      <label>비밀번호 <input name="userPwd" type="password" required minlength="4" maxlength="30" autocomplete="current-password"></label>
+      <label id="nameField" hidden>이름 <input name="userName" maxlength="30" autocomplete="name"></label>
+      <div class="dlg-actions">
+        <button class="linkish" type="button" id="switchMode">처음이세요? 회원가입</button>
+        <span>
+          <button class="btn" type="button" id="authCancel">닫기</button>
+          <button class="btn primary" type="submit" id="authSubmit">로그인</button>
+        </span>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="alert"></div>
+
+  <script>
+    // back 주소. 로컬 back 으로 테스트할 때는 "http://localhost:8080" 으로 바꾼다.
+    const API = "http://3.36.73.195:8080";
+    const won = n => n.toLocaleString("ko-KR");
+    const $id = id => document.getElementById(id);
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    const state = {
+      page: 0, keyword: "", goods: new Map(),
+      cart: new Map(),                                     // goodsId -> qty
+      user: JSON.parse(localStorage.getItem("user") || "null"),
+      signup: false,
+    };
+
+    async function api(path, opts = {}) {
+      const res = await fetch(API + path, {
+        ...opts,
+        headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.status === 204) return null;
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.detail || "요청을 처리하지 못했습니다. (HTTP " + res.status + ")");
+      return body;
+    }
+
+    let toastTimer;
+    function toast(msg, isErr = false) {
+      const t = $id("toast");
+      t.textContent = msg;
+      t.className = "toast show" + (isErr ? " err" : "");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.className = "toast", 3200);
+    }
+
+    // 상품 진열
+    async function loadGoods() {
+      try {
+        const q = new URLSearchParams({ page: state.page, size: 12 });
+        if (state.keyword) q.set("keyword", state.keyword);
+        const data = await api("/api/goods?" + q);
+        renderShelf(data);
+      } catch (e) {
+        $id("shelf").innerHTML = "";
+        showEmpty("상품을 불러오지 못했습니다.", "back 서버(" + API + ")가 실행 중인지, EC2 보안 그룹에서 8080 포트가 열려 있는지 확인하세요.");
+        $id("pager").hidden = true;
+      }
+    }
+
+    function showEmpty(title, desc) {
+      const el = $id("empty");
+      el.hidden = false;
+      el.innerHTML = "<p><strong>" + esc(title) + "</strong></p><p>" + esc(desc) + "</p>";
+    }
+
+    function renderShelf(data) {
+      const shelf = $id("shelf");
+      $id("empty").hidden = true;
+      data.content.forEach(g => state.goods.set(g.goodsId, g));
+      shelf.innerHTML = data.content.map(g => {
+        const out = g.stock === 0;
+        const low = !out && g.stock <= 5;
+        return '<li class="tag' + (out ? " soldout" : "") + '">' +
+          '<span class="name">' + esc(g.goodsName) + '</span>' +
+          '<span class="code">상품번호 ' + esc(g.goodsId) + '</span>' +
+          '<span class="price">' + won(g.goodsPrice) + '<small>원</small></span>' +
+          '<div class="row"><span class="stock' + (low ? " low" : "") + '">' + (out ? "품절" : "재고 " + won(g.stock) + "개") + '</span>' +
+          '<button class="btn" type="button" data-add="' + esc(g.goodsId) + '"' + (out ? " disabled" : "") + '>담기</button></div></li>';
+      }).join("");
+
+      if (!data.content.length) {
+        showEmpty(
+          state.keyword ? "‘" + state.keyword + "’ 이름의 상품이 없습니다." : "진열된 상품이 없습니다.",
+          state.keyword ? "다른 이름으로 찾아보세요." : "아래 ‘상품 등록’에서 첫 상품을 올려 보세요."
+        );
+      }
+      const pager = $id("pager");
+      pager.hidden = data.totalPages <= 1;
+      $id("pageInfo").textContent = (data.page + 1) + " / " + data.totalPages;
+      $id("prev").disabled = data.page === 0;
+      $id("next").disabled = data.page + 1 >= data.totalPages;
+    }
+
+    // 주문 전표
+    function renderCart() {
+      const lines = $id("lines");
+      let total = 0;
+      lines.innerHTML = [...state.cart].map(([id, qty]) => {
+        const g = state.goods.get(id);
+        total += g.goodsPrice * qty;
+        return '<li><span>' + esc(g.goodsName) + '</span>' +
+          '<input type="number" min="1" max="' + g.stock + '" value="' + qty + '" data-qty="' + esc(id) + '" aria-label="' + esc(g.goodsName) + ' 수량">' +
+          '<button class="x" type="button" data-del="' + esc(id) + '" aria-label="' + esc(g.goodsName) + ' 빼기">×</button></li>';
+      }).join("");
+      $id("total").textContent = won(total) + "원";
+      $id("cartEmpty").hidden = state.cart.size > 0;
+      $id("orderBtn").disabled = !state.user || state.cart.size === 0;
+      $id("orderHint").textContent = !state.user ? "주문하려면 먼저 로그인하세요." : state.cart.size ? "" : "담은 상품이 없습니다.";
+    }
+
+    $id("shelf").addEventListener("click", e => {
+      const id = e.target.dataset.add;
+      if (!id) return;
+      const g = state.goods.get(id);
+      const qty = (state.cart.get(id) || 0) + 1;
+      if (qty > g.stock) return toast(g.goodsName + "은(는) 재고가 " + g.stock + "개뿐입니다.", true);
+      state.cart.set(id, qty);
+      renderCart();
+    });
+    $id("lines").addEventListener("change", e => {
+      const id = e.target.dataset.qty;
+      if (!id) return;
+      const g = state.goods.get(id);
+      const qty = Math.max(1, Math.min(g.stock, parseInt(e.target.value, 10) || 1));
+      state.cart.set(id, qty);
+      renderCart();
+    });
+    $id("lines").addEventListener("click", e => {
+      if (!e.target.dataset.del) return;
+      state.cart.delete(e.target.dataset.del);
+      renderCart();
+    });
+
+    $id("orderForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const btn = $id("orderBtn");
+      btn.disabled = true;
+      try {
+        const order = await api("/api/orders", {
+          method: "POST",
+          body: JSON.stringify({
+            userId: state.user.userId,
+            address: $id("address").value.trim(),
+            items: [...state.cart].map(([goodsId, qty]) => ({ goodsId, qty })),
+          }),
+        });
+        state.cart.clear();
+        toast("주문했습니다. 주문번호 " + order.orderId + ", " + won(order.totalAmount) + "원");
+        await Promise.all([loadGoods(), loadOrders()]);
+      } catch (err) {
+        toast(err.message, true);
+      }
+      renderCart();
+    });
+
+    // 주문 내역
+    async function loadOrders() {
+      const block = $id("ordersBlock");
+      block.hidden = !state.user;
+      if (!state.user) return;
+      try {
+        const data = await api("/api/orders?userId=" + encodeURIComponent(state.user.userId) + "&size=5");
+        $id("orders").innerHTML = data.content.length ? data.content.map(o =>
+          '<li><div class="head"><span>주문번호 ' + o.orderId + '</span><span>' + won(o.totalAmount) + '원</span></div>' +
+          '<div class="meta">' + new Date(o.orderDate).toLocaleString("ko-KR") + ', ' + esc(o.address) + '</div>' +
+          '<ul>' + o.lines.map(l => '<li>' + esc(l.goodsName) + ' ' + l.qty + '개, ' + won(l.amount) + '원</li>').join("") + '</ul></li>'
+        ).join("") : '<li>아직 주문한 상품이 없습니다.</li>';
+      } catch (err) {
+        $id("orders").innerHTML = '<li>' + esc(err.message) + '</li>';
+      }
+    }
+
+    // 로그인 / 회원가입
+    function renderUser() {
+      const who = $id("who");
+      who.hidden = !state.user;
+      who.textContent = state.user ? state.user.userName + "님" : "";
+      $id("authBtn").textContent = state.user ? "로그아웃" : "로그인";
+      renderCart();
+      loadOrders();
+    }
+    function setMode(signup) {
+      state.signup = signup;
+      $id("authTitle").textContent = $id("authSubmit").textContent = signup ? "회원가입" : "로그인";
+      $id("nameField").hidden = !signup;
+      $id("nameField").querySelector("input").required = signup;
+      $id("switchMode").textContent = signup ? "이미 회원이세요? 로그인" : "처음이세요? 회원가입";
+    }
+    $id("authBtn").addEventListener("click", () => {
+      if (state.user) {
+        state.user = null;
+        localStorage.removeItem("user");
+        toast("로그아웃했습니다.");
+        return renderUser();
+      }
+      setMode(false);
+      $id("authDlg").showModal();
+    });
+    $id("switchMode").addEventListener("click", () => setMode(!state.signup));
+    $id("authCancel").addEventListener("click", () => $id("authDlg").close());
+    $id("authForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(e.target));
+      try {
+        if (state.signup) {
+          await api("/api/auth/signup", { method: "POST", body: JSON.stringify(f) });
+        }
+        state.user = await api("/api/auth/login", { method: "POST", body: JSON.stringify({ userId: f.userId, userPwd: f.userPwd }) });
+        localStorage.setItem("user", JSON.stringify(state.user));
+        $id("authDlg").close();
+        e.target.reset();
+        toast((state.signup ? "회원가입했습니다. " : "") + state.user.userName + "님, 반갑습니다.");
+        renderUser();
+      } catch (err) {
+        toast(err.message, true);
+      }
+    });
+
+    // 검색 / 페이지
+    $id("searchForm").addEventListener("submit", e => {
+      e.preventDefault();
+      state.keyword = $id("keyword").value.trim();
+      state.page = 0;
+      loadGoods();
+    });
+    $id("prev").addEventListener("click", () => { state.page--; loadGoods(); });
+    $id("next").addEventListener("click", () => { state.page++; loadGoods(); });
+
+    // 상품 등록 (테스트용, 보안 활성화 시 관리자만 가능)
+    $id("goodsForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(e.target));
+      f.goodsPrice = Number(f.goodsPrice);
+      f.stock = Number(f.stock);
+      try {
+        const g = await api("/api/goods", { method: "POST", body: JSON.stringify(f) });
+        toast(g.goodsName + " 상품을 등록했습니다.");
+        e.target.reset();
+        loadGoods();
+      } catch (err) {
+        toast(err.message, true);
+      }
+    });
+
+    renderUser();
+    loadGoods();
+  </script>
+</body>
+</html>
